@@ -168,6 +168,10 @@ function guid () {
   return s4() + s4() + s4()
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const zhExt = /[\u4e00-\u9fa5]+/
 const zhExt2 = /[\u4e00-\u9fa5]+/g
 
@@ -179,6 +183,8 @@ module.exports = {
   hmacHash,
   hash,
   guid,
+  sleep,
+  prettierJs,
   zhExt,
   zhExt2
 }

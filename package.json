@@ -18,6 +18,7 @@
     "@babel/types": "^7.26.0",
     "@vue/compiler-dom": "^3.5.12",
     "@vue/compiler-sfc": "^3.5.12",
+    "axios": "^1.7.7",
     "crypto": "^1.0.1",
     "ignore": "^6.0.2",
     "lodash": "^4.17.21",

@@ -3,3 +3,5 @@ dist/
 output/
 i18nConfig.js
 node_modules/
+
+src/locale

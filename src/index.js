@@ -3,6 +3,7 @@ const fs = require('fs')
 const Update = require('./update')
 const Export = require('./export')
 const ImportExcel = require('./import')
+const Translate  = require('./translate')
 
 module.exports = class I18n {
   command = null
@@ -43,6 +44,7 @@ module.exports = class I18n {
       update: new Update(this.config, this.params),
       export: new Export(this.config, this.params),
       import: new ImportExcel(this.config, this.params),
+      translate: new Translate(this.config, this.params),
     }
   }
 
