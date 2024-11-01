@@ -1,9 +1,11 @@
 {
-  "name": "@pianduan/vue-i18n",
+  "name": "@pianduan/vue-i18n-plugin",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC"

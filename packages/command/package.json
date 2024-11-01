@@ -1,0 +1,29 @@
+{
+  "name": "@pianduan/vue-i18n-command",
+  "version": "1.0.0",
+  "description": "vue 项目 i18n 辅助工具",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "vueI18n": "bin/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/parser": "^7.26.1",
+    "@babel/traverse": "^7.25.9",
+    "@babel/types": "^7.26.0",
+    "@vue/compiler-dom": "^3.5.12",
+    "@vue/compiler-sfc": "^3.5.12",
+    "axios": "^1.7.7",
+    "crypto": "^1.0.1",
+    "ignore": "^6.0.2",
+    "lodash": "^4.17.21",
+    "node-xlsx": "^0.24.0",
+    "prettier": "^3.3.3",
+    "yargs-parser": "^21.1.1"
+  }
+}
