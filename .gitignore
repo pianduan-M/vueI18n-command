@@ -1,4 +1,4 @@
-test/
+test*/
 dist/
 output/
 i18nConfig.js

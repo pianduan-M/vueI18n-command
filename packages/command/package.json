@@ -16,7 +16,6 @@
     "@babel/parser": "^7.26.1",
     "@babel/traverse": "^7.25.9",
     "@babel/types": "^7.26.0",
-    "@vue/compiler-dom": "^3.5.12",
     "@vue/compiler-sfc": "^3.5.12",
     "axios": "^1.7.7",
     "crypto": "^1.0.1",
