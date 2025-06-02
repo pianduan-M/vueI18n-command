@@ -18,7 +18,8 @@
     "@rollup/plugin-json": "^6.1.0",
     "@vue/compiler-sfc": "^3.5.12",
     "crypto": "^1.0.1",
-    "ignore": "^6.0.2"
+    "ignore": "^6.0.2",
+    "loader-utils": "^3.3.1"
   },
   "repository": {
     "type": "git",

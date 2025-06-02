@@ -33,6 +33,10 @@ function requireUtils () {
 	const ignore = require$$8;
 	const { parse: vueParseFn } = require$$9;
 
+	const getRootPath = process.env.UNI_INPUT_DIR
+	  ? () => process.env.UNI_INPUT_DIR
+	  : () => process.cwd();
+
 	function hash(str) {
 	  const md5 = crypto.createHash("md5");
 	  return md5.update(str).digest("hex");
@@ -53,11 +57,12 @@ function requireUtils () {
 	  if (!baseLocale) {
 	    return false;
 	  }
+
 	  if (!baseLocale[id]) {
 	    console.log(
 	      "\x1B[31m%s\x1B[0m",
 	      "\n\u3010i18n\u3011\u5728\u8BED\u6599\u5305\u4E2D\u672A\u53D1\u73B0\u4EE5\u4E0B\u5B57\u6BB5 "
-	        .concat(relativePath, "\uFF1A")
+	        .concat(id, "\uFF1A")
 	        .concat(value, "  \u8BF7\u6267\u884Ci18n update\n")
 	    );
 	    return false;
@@ -65,33 +70,24 @@ function requireUtils () {
 	  return false;
 	}
 
-	function readChinese(languages) {
+	function readChinese(languages, zhLanguageCode = "zh-CN") {
 	  const chinesePath = languages.find(function (language) {
-	    return language.name === "zh-CN";
+	    return language.name === zhLanguageCode;
 	  }).path;
 
 	  const chineseFunc = function (chinesePath, k) {
-	    let filePath = p.resolve(process.cwd(), chinesePath, "zh-CN.json");
-	    if (!fs.existsSync(filePath)) {
-	      filePath = p.resolve(process.cwd(), chinesePath, "zh-CN.js");
-	    }
-	    const code = fs.readFileSync(filePath, "utf8");
+	    let code;
+	    let filePath = p.resolve(
+	      getRootPath(),
+	      chinesePath,
+	      `${zhLanguageCode}.json`
+	    );
+	    code = fs.readFileSync(filePath, "utf8");
 
-	    baseLocale["zh-CN"] = JSON.parse(code);
+	    // todo 支持 js 文件
+	    if (!fs.existsSync(filePath)) ;
 
-	    console.log(baseLocale, "baseLocale");
-
-	    // const ast = parse(code, {
-	    //   sourceType: "module",
-	    //   plugins: ["typescript"],
-	    // });
-	    // traverse(ast, {
-	    //   ObjectProperty: function (path) {
-	    //     const key = path.node.key.value || path.node.key.name;
-	    //     const value = path.node.value.value || path.node.value.name;
-	    //     baseLocale[key] = value;
-	    //   },
-	    // });
+	    baseLocale = JSON.parse(code);
 	  };
 	  if (typeof chinesePath === "string") {
 	    chineseFunc(chinesePath);
@@ -103,7 +99,7 @@ function requireUtils () {
 	}
 
 	function parserJSI18n(content, file, options, config = {}) {
-	  const { relativePath } = file;
+	  const { realpath: relativePath } = file;
 	  const filePath = file.relativePath;
 
 	  const md5Hash = function (str) {
@@ -115,9 +111,15 @@ function requireUtils () {
 
 	  const importInfo = options.importInfo;
 
-	  const importSource = importInfo.source;
-	  const importImported = importInfo.imported;
-	  const importLocal = importInfo.local;
+	  let importSource, importImported, importLocal;
+
+	  if (importInfo) {
+	    importSource = importInfo.source;
+	    importImported = importInfo.imported;
+	    importLocal = importInfo.local;
+	  } else {
+	    importLocal = "this.$t";
+	  }
 
 	  const plugins = ["typescript", "decorators-legacy"];
 
@@ -132,7 +134,7 @@ function requireUtils () {
 	  });
 
 	  if (ast.errors.length > 0) {
-	    console.warn(ast.errors);
+	    console.warn(ast.errors, relativePath, "relativePath");
 	    return content;
 	  }
 
@@ -143,7 +145,7 @@ function requireUtils () {
 	  const visitor = {
 	    Program: {
 	      exit: function (path) {
-	        if (needI18n) {
+	        if (needI18n && importInfo) {
 	          let addI18n_1 = true;
 	          path.traverse({
 	            ImportDeclaration: function (importPath) {
@@ -152,7 +154,7 @@ function requireUtils () {
 	                if (specifiers.length > 0) {
 	                  const registerLocaleIndex = specifiers.findIndex(
 	                    function (n) {
-	                      return n.imported.name === importImported;
+	                      return n.imported?.name === importImported;
 	                    }
 	                  );
 	                  addI18n_1 = registerLocaleIndex === -1;
@@ -160,7 +162,7 @@ function requireUtils () {
 	              }
 	            },
 	          });
-	          if (addI18n_1) {
+	          if (addI18n_1 && importInfo) {
 	            addNamed(path, importImported, importSource, {
 	              nameHint: importLocal,
 	              importPosition: "after",
@@ -179,24 +181,26 @@ function requireUtils () {
 	      if (zhExt.test(path.toString())) {
 	        const value = path.toString().trim();
 	        let id = md5Hash(value);
-	        if (noLocale(value, id, relativePath)) {
+	        if (noLocale(value, id)) {
 	          return;
 	        }
-	        const origininalValue = path.node.value;
-	        const trimmedValue = origininalValue.trim();
-	        const valueIndex = origininalValue.indexOf(trimmedValue);
-	        const spacesLeft = origininalValue.substring(0, valueIndex);
-	        const spacesRight = origininalValue.substring(
-	          valueIndex + trimmedValue.length
-	        );
-	        path.replaceWithMultiple([
-	          t.jsxText(spacesLeft),
-	          t.jsxExpressionContainer(
-	            t.callExpression(t.identifier(importLocal), [t.stringLiteral(id)])
-	          ),
-	          t.jsxText(spacesRight),
-	        ]);
-	        needI18n = true;
+	        const origininalValue = path?.node?.value;
+	        if (origininalValue) {
+	          const trimmedValue = origininalValue.trim();
+	          const valueIndex = origininalValue.indexOf(trimmedValue);
+	          const spacesLeft = origininalValue.substring(0, valueIndex);
+	          const spacesRight = origininalValue.substring(
+	            valueIndex + trimmedValue.length
+	          );
+	          path.replaceWithMultiple([
+	            t.jsxText(spacesLeft),
+	            t.jsxExpressionContainer(
+	              t.callExpression(t.identifier(importLocal), [t.stringLiteral(id)])
+	            ),
+	            t.jsxText(spacesRight),
+	          ]);
+	          needI18n = true;
+	        }
 	      }
 	    },
 	    TemplateLiteral: function (path) {
@@ -232,7 +236,7 @@ function requireUtils () {
 	              return "{{@".concat(i_1, "}}");
 	            });
 	          var id = md5Hash(value);
-	          if (noLocale(value, id, relativePath)) {
+	          if (noLocale(value, id)) {
 	            return;
 	          }
 	          path.replaceWith(
@@ -273,7 +277,7 @@ function requireUtils () {
 	          : _b.toString();
 	      if (zhExt.test(value)) {
 	        var id = md5Hash(value);
-	        if (noLocale(value, id, relativePath)) {
+	        if (noLocale(value, id)) {
 	          return;
 	        }
 	        if (t.isJSXAttribute(path.parent)) {
@@ -330,10 +334,17 @@ function requireUtils () {
 	}
 
 	function parserVueI18n(content, file, options) {
+	  const filePath = file.realpath;
+
 	  const { descriptor, errors } = vueParseFn(content);
 
 	  if (errors.length > 0) {
-	    console.warn(errors);
+	    // console.warn(errors, filePath, " vue parse error");
+
+	    if (filePath.includes("project.vue")) {
+	      console.log(errors, content);
+	      // process.exit(1);
+	    }
 	    return content;
 	  }
 
@@ -364,10 +375,17 @@ function requireUtils () {
 	      isTs: script.lang === "ts",
 	      needI18n,
 	    });
+
+	    if (filePath.includes("project.vue")) {
+	      console.log(scriptRes, "scriptRes");
+	    }
+
 	    scriptRes = scriptRes = createElementStr(scriptRes, script);
 	  }
 
-	  return `${templateRes}${scriptRes}${scriptSetupRes}${styles.map((item) => createElementStr(item.content, item)).join("")}`;
+	  return `${templateRes}${scriptRes}${scriptSetupRes}${styles
+	    .map((item) => createElementStr(item.content, item))
+	    .join("")}`;
 	}
 
 	function parserVueTemplate(template, options) {
@@ -381,7 +399,13 @@ function requireUtils () {
 	  let needI18n = false;
 
 	  const importInfo = options.importInfo;
-	  const importLocal = importInfo.templateImported || importInfo.local || "$t";
+	  let importLocal;
+
+	  if (importInfo) {
+	    importLocal = importInfo.templateImported || importInfo.local || "$t";
+	  } else {
+	    importLocal = "$t";
+	  }
 
 	  const md5Hash = function (str) {
 	    if (options && options.md5secretKey) {
@@ -394,8 +418,8 @@ function requireUtils () {
 	    1(node) {
 	      if (node.props && node.props.length) {
 	        node.props.forEach((prop) => {
-	          const type = prop.type;
-	          const excute = visitor[type];
+	          const type = prop?.type;
+	          const excute = visitor?.[type];
 
 	          if (excute) {
 	            excute(prop);
@@ -416,7 +440,7 @@ function requireUtils () {
 
 	        const id = md5Hash(value);
 
-	        if (noLocale(id)) {
+	        if (noLocale(value, id)) {
 	          return;
 	        }
 
@@ -455,11 +479,11 @@ function requireUtils () {
 	    },
 
 	    StringLiteral(node, source) {
-	      const value = node.value.trim();
+	      const value = node?.value?.trim?.();
 	      if (value && zhExt.test(value)) {
 	        const id = md5Hash(value);
 
-	        if (noLocale(id)) {
+	        if (noLocale(value, id)) {
 	          return source;
 	        }
 
@@ -483,7 +507,7 @@ function requireUtils () {
 	      }
 	    },
 	    6(node) {
-	      const { type, content } = node.value;
+	      const { type, content } = node?.value || {};
 
 	      if (type === 2 && zhExt.test(content)) {
 	        const { source, start, end } = node.loc;
@@ -492,7 +516,7 @@ function requireUtils () {
 
 	        const id = md5Hash(value);
 
-	        if (noLocale(id)) {
+	        if (noLocale(value, id)) {
 	          return;
 	        }
 
@@ -543,6 +567,7 @@ function requireUtils () {
 	  const sameGit = _ignore.sameGit;
 	  const languages = options.languages;
 	  const ignoreList = _ignore.list || [];
+	  const __includes = options.includes || [];
 
 	  if (sameGit) {
 	    const gitIgnore = fs
@@ -552,14 +577,18 @@ function requireUtils () {
 	  }
 
 	  try {
-	    const relativePath = p.relative(process.cwd(), filePath);
-	    const includes = ignore().add(options.includes);
+	    let projectPath = getRootPath();
+
+	    const relativePath = p.relative(projectPath, filePath);
+	    const includes = ignore().add(__includes);
 	    const included = includes.ignores(relativePath);
 	    const ig = ignore().add(ignoreList);
+
 	    if (ig.ignores(relativePath) && !included) {
 	      return content;
 	    }
 	  } catch (error) {
+	    console.log(error, content, filePath, "error");
 	    return content;
 	  }
 
@@ -571,13 +600,18 @@ function requireUtils () {
 	  if (/\.(ts|js)$/.test(filePath)) {
 	    return parserJSI18n(content, file, options);
 	  } else if (/\.vue$/.test(filePath)) {
-	    return parserVueI18n(content, file, options);
+	    if (/<(template|script|style)[\s>]/g.test(content)) {
+	      return parserVueI18n(content, file, options);
+	    } else {
+	       return parserJSI18n(content, file, options);
+	    }
 	  }
 
 	  return content;
 	}
 
 	utils.parserI18n = parserI18n;
+	utils.getRootPath = getRootPath;
 	return utils;
 }
 
@@ -588,43 +622,47 @@ function requireWebpack () {
 	if (hasRequiredWebpack) return webpack$1;
 	hasRequiredWebpack = 1;
 	const { parserI18n } = requireUtils();
+	const path = require$$7;
+	const fs = require$$6;
 
-	class VueI8nPlugin {
-	  constructor(options) {
-	    // 接收一个自定义的 transform 回调
-	    this.options = options;
+	webpack$1 = function (source) {
+	  let projectPath, options;
+	  if (process.env.UNI_INPUT_DIR) {
+	    projectPath = process.env.UNI_INPUT_DIR;
+	  } else {
+	    projectPath = process.cwd();
 	  }
 
-	  apply(compiler) {
-	    const _this = this;
-
-	    compiler.hooks.compilation.tap("TransformPlugin", (compilation) => {
-	      // 在 NormalModule 生成代码时调用
-	      compilation.hooks.buildModule.tap("TransformPlugin", (module) => {
-	        if (
-	          module.resource &&
-	          !/node_modules/.test(file) &&
-	          /.(js|ts|tsx|jsx|vue)$/.test(module.resource)
-	        ) {
-	          // 拿到模块的源代码
-	          module.loaders.push({
-	            loader: function (source) {
-	              const file = this.resourcePath;
-	              try {
-	                return parserI18n(source, { realpath: file }, _this.options);
-	              } catch (error) {
-	                console.warn(error);
-	                return source;
-	              }
-	            },
-	          });
-	        }
-	      });
-	    });
+	  if (this.getOptions) {
+	    options = this.getOptions();
+	  } else if (this.query) {
+	    options = this.query;
 	  }
-	}
 
-	webpack$1 = VueI8nPlugin;
+	  if (!options) {
+	    let optionsPath = path.resolve(projectPath, "./i18nConfig.js");
+
+	    //  判断是否存在配置文件
+	    if (!fs.existsSync(optionsPath)) {
+	      options = {};
+	    } else {
+	      options = commonjsRequire(optionsPath);
+	    }
+	  }
+
+	  const file = this.resourcePath;
+
+
+
+	  if (!/node_modules/.test(file)) {
+	    try {
+	      source = parserI18n(source, { realpath: file }, options);
+	    } catch (error) {
+	      console.log(error, file, "error");
+	    }
+	  }
+	  return source;
+	};
 	return webpack$1;
 }
 

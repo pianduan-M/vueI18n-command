@@ -9,6 +9,10 @@ const p = require("path");
 const ignore = require("ignore");
 const { parse: vueParseFn } = require("@vue/compiler-sfc");
 
+const getRootPath = process.env.UNI_INPUT_DIR
+  ? () => process.env.UNI_INPUT_DIR
+  : () => process.cwd();
+
 function hash(str) {
   const md5 = crypto.createHash("md5");
   return md5.update(str).digest("hex");
@@ -25,15 +29,23 @@ const zhExt = /[\u4e00-\u9fa5]+/;
 
 let baseLocale = null;
 
+function hasLocale(id) {
+  if (!baseLocale) {
+    return false;
+  }
+  return !!baseLocale[id];
+}
+
 function noLocale(value, id, relativePath) {
   if (!baseLocale) {
     return false;
   }
+
   if (!baseLocale[id]) {
     console.log(
       "\x1B[31m%s\x1B[0m",
       "\n\u3010i18n\u3011\u5728\u8BED\u6599\u5305\u4E2D\u672A\u53D1\u73B0\u4EE5\u4E0B\u5B57\u6BB5 "
-        .concat(relativePath, "\uFF1A")
+        .concat(id, "\uFF1A")
         .concat(value, "  \u8BF7\u6267\u884Ci18n update\n")
     );
     return false;
@@ -41,33 +53,27 @@ function noLocale(value, id, relativePath) {
   return false;
 }
 
-function readChinese(languages) {
+function readChinese(languages, zhLanguageCode = "zh-CN") {
   const chinesePath = languages.find(function (language) {
-    return language.name === "zh-CN";
+    return language.name === zhLanguageCode;
   }).path;
 
   const chineseFunc = function (chinesePath, k) {
-    let filePath = p.resolve(process.cwd(), chinesePath, "zh-CN.json");
+    let code;
+    let filePath = p.resolve(
+      getRootPath(),
+      chinesePath,
+      `${zhLanguageCode}.json`
+    );
+    code = fs.readFileSync(filePath, "utf8");
+
+    // todo 支持 js 文件
     if (!fs.existsSync(filePath)) {
-      filePath = p.resolve(process.cwd(), chinesePath, "zh-CN.js");
+      // filePath = p.resolve(getRootPath(), chinesePath, "zh-CN.js");
+      // co;
     }
-    const code = fs.readFileSync(filePath, "utf8");
 
-    baseLocale["zh-CN"] = JSON.parse(code);
-
-    console.log(baseLocale, "baseLocale");
-
-    // const ast = parse(code, {
-    //   sourceType: "module",
-    //   plugins: ["typescript"],
-    // });
-    // traverse(ast, {
-    //   ObjectProperty: function (path) {
-    //     const key = path.node.key.value || path.node.key.name;
-    //     const value = path.node.value.value || path.node.value.name;
-    //     baseLocale[key] = value;
-    //   },
-    // });
+    baseLocale = JSON.parse(code);
   };
   if (typeof chinesePath === "string") {
     chineseFunc(chinesePath);
@@ -79,7 +85,7 @@ function readChinese(languages) {
 }
 
 function parserJSI18n(content, file, options, config = {}) {
-  const { relativePath } = file;
+  const { realpath: relativePath } = file;
   const filePath = file.relativePath;
 
   const md5Hash = function (str) {
@@ -91,9 +97,15 @@ function parserJSI18n(content, file, options, config = {}) {
 
   const importInfo = options.importInfo;
 
-  const importSource = importInfo.source;
-  const importImported = importInfo.imported;
-  const importLocal = importInfo.local;
+  let importSource, importImported, importLocal;
+
+  if (importInfo) {
+    importSource = importInfo.source;
+    importImported = importInfo.imported;
+    importLocal = importInfo.local;
+  } else {
+    importLocal = "this.$t";
+  }
 
   const plugins = ["typescript", "decorators-legacy"];
 
@@ -108,7 +120,7 @@ function parserJSI18n(content, file, options, config = {}) {
   });
 
   if (ast.errors.length > 0) {
-    console.warn(ast.errors);
+    console.warn(ast.errors, relativePath, "relativePath");
     return content;
   }
 
@@ -119,7 +131,7 @@ function parserJSI18n(content, file, options, config = {}) {
   const visitor = {
     Program: {
       exit: function (path) {
-        if (needI18n) {
+        if (needI18n && importInfo) {
           let addI18n_1 = true;
           path.traverse({
             ImportDeclaration: function (importPath) {
@@ -128,7 +140,7 @@ function parserJSI18n(content, file, options, config = {}) {
                 if (specifiers.length > 0) {
                   const registerLocaleIndex = specifiers.findIndex(
                     function (n) {
-                      return n.imported.name === importImported;
+                      return n.imported?.name === importImported;
                     }
                   );
                   addI18n_1 = registerLocaleIndex === -1;
@@ -136,7 +148,7 @@ function parserJSI18n(content, file, options, config = {}) {
               }
             },
           });
-          if (addI18n_1) {
+          if (addI18n_1 && importInfo) {
             addNamed(path, importImported, importSource, {
               nameHint: importLocal,
               importPosition: "after",
@@ -158,21 +170,23 @@ function parserJSI18n(content, file, options, config = {}) {
         if (noLocale(value, id, relativePath)) {
           return;
         }
-        const origininalValue = path.node.value;
-        const trimmedValue = origininalValue.trim();
-        const valueIndex = origininalValue.indexOf(trimmedValue);
-        const spacesLeft = origininalValue.substring(0, valueIndex);
-        const spacesRight = origininalValue.substring(
-          valueIndex + trimmedValue.length
-        );
-        path.replaceWithMultiple([
-          t.jsxText(spacesLeft),
-          t.jsxExpressionContainer(
-            t.callExpression(t.identifier(importLocal), [t.stringLiteral(id)])
-          ),
-          t.jsxText(spacesRight),
-        ]);
-        needI18n = true;
+        const origininalValue = path?.node?.value;
+        if (origininalValue) {
+          const trimmedValue = origininalValue.trim();
+          const valueIndex = origininalValue.indexOf(trimmedValue);
+          const spacesLeft = origininalValue.substring(0, valueIndex);
+          const spacesRight = origininalValue.substring(
+            valueIndex + trimmedValue.length
+          );
+          path.replaceWithMultiple([
+            t.jsxText(spacesLeft),
+            t.jsxExpressionContainer(
+              t.callExpression(t.identifier(importLocal), [t.stringLiteral(id)])
+            ),
+            t.jsxText(spacesRight),
+          ]);
+          needI18n = true;
+        }
       }
     },
     TemplateLiteral: function (path) {
@@ -315,10 +329,13 @@ function createElementStr(content, node) {
 }
 
 function parserVueI18n(content, file, options) {
+  const filePath = file.realpath;
+
   const { descriptor, errors } = vueParseFn(content);
 
   if (errors.length > 0) {
-    console.warn(errors);
+    console.warn(errors, filePath, " vue parse error");
+
     return content;
   }
 
@@ -349,10 +366,13 @@ function parserVueI18n(content, file, options) {
       isTs: script.lang === "ts",
       needI18n,
     });
+
     scriptRes = scriptRes = createElementStr(scriptRes, script);
   }
 
-  return `${templateRes}${scriptRes}${scriptSetupRes}${styles.map((item) => createElementStr(item.content, item)).join("")}`;
+  return `${templateRes}${scriptRes}${scriptSetupRes}${styles
+    .map((item) => createElementStr(item.content, item))
+    .join("")}`;
 }
 
 function parserVueTemplate(template, options) {
@@ -366,7 +386,13 @@ function parserVueTemplate(template, options) {
   let needI18n = false;
 
   const importInfo = options.importInfo;
-  const importLocal = importInfo.templateImported || importInfo.local || "$t";
+  let importLocal;
+
+  if (importInfo) {
+    importLocal = importInfo.templateImported || importInfo.local || "$t";
+  } else {
+    importLocal = "$t";
+  }
 
   const md5Hash = function (str) {
     if (options && options.md5secretKey) {
@@ -379,8 +405,8 @@ function parserVueTemplate(template, options) {
     1(node) {
       if (node.props && node.props.length) {
         node.props.forEach((prop) => {
-          const type = prop.type;
-          const excute = visitor[type];
+          const type = prop?.type;
+          const excute = visitor?.[type];
 
           if (excute) {
             excute(prop);
@@ -401,7 +427,7 @@ function parserVueTemplate(template, options) {
 
         const id = md5Hash(value);
 
-        if (noLocale(id)) {
+        if (noLocale(value, id)) {
           return;
         }
 
@@ -440,11 +466,11 @@ function parserVueTemplate(template, options) {
     },
 
     StringLiteral(node, source) {
-      const value = node.value.trim();
+      const value = node?.value?.trim?.();
       if (value && zhExt.test(value)) {
         const id = md5Hash(value);
 
-        if (noLocale(id)) {
+        if (noLocale(value, id)) {
           return source;
         }
 
@@ -468,7 +494,7 @@ function parserVueTemplate(template, options) {
       }
     },
     6(node) {
-      const { type, content } = node.value;
+      const { type, content } = node?.value || {};
 
       if (type === 2 && zhExt.test(content)) {
         const { source, start, end } = node.loc;
@@ -477,7 +503,7 @@ function parserVueTemplate(template, options) {
 
         const id = md5Hash(value);
 
-        if (noLocale(id)) {
+        if (noLocale(value, id)) {
           return;
         }
 
@@ -528,6 +554,7 @@ function parserI18n(content, file, options) {
   const sameGit = _ignore.sameGit;
   const languages = options.languages;
   const ignoreList = _ignore.list || [];
+  const __includes = options.includes || [];
 
   if (sameGit) {
     const gitIgnore = fs
@@ -537,14 +564,18 @@ function parserI18n(content, file, options) {
   }
 
   try {
-    const relativePath = p.relative(process.cwd(), filePath);
-    const includes = ignore().add(options.includes);
+    let projectPath = getRootPath();
+
+    const relativePath = p.relative(projectPath, filePath);
+    const includes = ignore().add(__includes);
     const included = includes.ignores(relativePath);
     const ig = ignore().add(ignoreList);
+
     if (ig.ignores(relativePath) && !included) {
       return content;
     }
   } catch (error) {
+    console.log(error, "error");
     return content;
   }
 
@@ -556,10 +587,15 @@ function parserI18n(content, file, options) {
   if (/\.(ts|js)$/.test(filePath)) {
     return parserJSI18n(content, file, options);
   } else if (/\.vue$/.test(filePath)) {
-    return parserVueI18n(content, file, options);
+    if (/<(template|script|style)[\s>]/g.test(content)) {
+      return parserVueI18n(content, file, options);
+    } else {
+      return parserJSI18n(content, file, options);
+    }
   }
 
   return content;
 }
 
 exports.parserI18n = parserI18n;
+exports.getRootPath = getRootPath;
