@@ -30,10 +30,7 @@ module.exports = class Update {
     languages.forEach((language) => {
       const { name, path } = language;
       let dirPath = p.resolve(__rootPath, path, language.name + ".json");
-      // if (!fs.existsSync(dirPath)) {
-      //   dirPath = p.resolve(__rootPath, path, language.name + '.js')
-      // }
-
+ 
       if (!fs.existsSync(dirPath)) {
         createLanguageFile(__rootPath, path, i18nModule, name, []);
         this.languages[name] = {};
@@ -165,9 +162,6 @@ module.exports = class Update {
       CallExpression(path) {
         if (path.node.callee.name === i18nFnName) {
           let key = path.node.arguments[0].value;
-          if (key === "me:setting:field:date:dbTypeTip") {
-            console.log(key);
-          }
           // 如果key是中文（如：_i18n('测试中文')），需要将中文传进去
           if (key) {
             _this.validateKey(zhExt.test(key) ? key : "", key, file);
@@ -182,8 +176,13 @@ module.exports = class Update {
   vueSfcOpt(code, file) {
     const { scriptContent, scriptSetupContent, templateAst } = vueParse(code);
 
-    this.babelOpt(scriptContent, file);
-    this.babelOpt(scriptSetupContent, file);
+    if (scriptContent) {
+      this.babelOpt(scriptContent, file);
+    }
+
+    if (scriptSetupContent) {
+      this.babelOpt(scriptSetupContent, file);
+    }
 
     const _this = this;
 
@@ -230,9 +229,11 @@ module.exports = class Update {
         },
 
         StringLiteral(node) {
-          const value = node.value.trim();
-          if (value && zhExt.test(value)) {
-            handle(value, file);
+          if (node.value) {
+            const value = node.value?.trim?.();
+            if (value && zhExt.test(value)) {
+              handle(value, file);
+            }
           }
         },
         5(node) {
@@ -243,18 +244,18 @@ module.exports = class Update {
           }
         },
         6(node) {
-          const { type, content } = node.value;
+          if (node.value) {
+            const { type, content } = node.value;
 
-          if (type === 2 && zhExt.test(content)) {
-            const value = content.trim();
-            handle(value, file);
+            if (type === 2 && zhExt.test(content)) {
+              const value = content.trim();
+              handle(value, file);
+            }
           }
         },
         7(node) {
           if (!node.exp) return;
           const type = node.exp.type;
-
-          console.log(node.exp, " node.exp");
 
           const excute = visitor[type];
           if (excute) {

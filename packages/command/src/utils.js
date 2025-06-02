@@ -99,6 +99,7 @@ function scanFile(dirPath, config, fn) {
       config.__rootPath,
       p.resolve(dirPath, item)
     );
+
     if (!ig.ignores(relativePath) || includes.ignores(relativePath)) {
       const path = p.resolve(dirPath, item);
       const stat = fs.lstatSync(path);
@@ -135,11 +136,11 @@ function vueParse(code) {
   const { descriptor } = vueParseFn(code);
   const { script, scriptSetup, template } = descriptor;
 
-  const templateAst = template.ast;
+  const templateAst = template?.ast;
 
   return {
-    scriptContent: script.content,
-    scriptSetupContent: scriptSetup.content,
+    scriptContent: script?.content,
+    scriptSetupContent: scriptSetup?.content,
     templateAst,
   };
 }
