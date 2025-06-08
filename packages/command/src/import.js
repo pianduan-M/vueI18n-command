@@ -1,9 +1,8 @@
 const p = require("path");
 const fs = require("fs");
 const xlsx = require("node-xlsx");
-const {
-  createLanguageFile,
-} = require('./utils')
+const { createLanguageFile } = require("./utils");
+const lodash = require("lodash");
 
 class ImportExcel {
   config = null;
@@ -28,18 +27,17 @@ class ImportExcel {
         this.backup(dirPath, language);
       }
 
-      const source = []
-      const newLanguageObj = this.languageData[name]
+      const source = [];
+      const newLanguageObj = this.languageData[name];
 
       for (let key in newLanguageObj) {
         source.push({
           value: newLanguageObj[key],
-          id: key
-        })
+          id: key,
+        });
       }
 
-      createLanguageFile(__rootPath, path, i18nModule, name, source)
-
+      createLanguageFile(__rootPath, path, i18nModule, name, source);
     });
   }
 
@@ -99,6 +97,8 @@ class ImportExcel {
         const name = keys[i];
         result[name] = result[name] || {};
         result[name][key] = item[i];
+
+        lodash.set(result[name], key, item[i]);
       }
     });
 
@@ -108,7 +108,7 @@ class ImportExcel {
   run() {
     this.readExcelFile();
     this.writeLanguages();
-    console.log('import excel locales successfully');
+    console.log("import excel locales successfully");
   }
 }
 

@@ -50,3 +50,5 @@ unpackage
 **/unpackage/**
 
 test/
+
+!.npmrc

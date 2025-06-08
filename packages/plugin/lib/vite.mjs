@@ -337,12 +337,8 @@ function requireUtils () {
 	  const { descriptor, errors } = vueParseFn(content);
 
 	  if (errors.length > 0) {
-	    // console.warn(errors, filePath, " vue parse error");
+	    console.warn(errors, filePath, " vue parse error");
 
-	    if (filePath.includes("project.vue")) {
-	      console.log(errors, content);
-	      // process.exit(1);
-	    }
 	    return content;
 	  }
 
@@ -373,10 +369,6 @@ function requireUtils () {
 	      isTs: script.lang === "ts",
 	      needI18n,
 	    });
-
-	    if (filePath.includes("project.vue")) {
-	      console.log(scriptRes, "scriptRes");
-	    }
 
 	    scriptRes = scriptRes = createElementStr(scriptRes, script);
 	  }
@@ -586,7 +578,7 @@ function requireUtils () {
 	      return content;
 	    }
 	  } catch (error) {
-	    console.log(error, content, filePath, "error");
+	    console.log(error, "error");
 	    return content;
 	  }
 
@@ -601,7 +593,7 @@ function requireUtils () {
 	    if (/<(template|script|style)[\s>]/g.test(content)) {
 	      return parserVueI18n(content, file, options);
 	    } else {
-	       return parserJSI18n(content, file, options);
+	      return parserJSI18n(content, file, options);
 	    }
 	  }
 

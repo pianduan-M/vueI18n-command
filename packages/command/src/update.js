@@ -2,6 +2,7 @@ const fs = require("fs");
 const p = require("path");
 const { default: traverse } = require("@babel/traverse");
 const { isString, isObject, isArray } = require("lodash");
+const { parse } = require("@babel/parser");
 const t = require("@babel/types");
 
 const {
@@ -26,18 +27,40 @@ module.exports = class Update {
   }
 
   readLanguagesConfig() {
-    const { languages, __rootPath, i18nModule } = this.config;
+    const { languages, __rootPath, i18nModule = false } = this.config;
     languages.forEach((language) => {
       const { name, path } = language;
       let dirPath = p.resolve(__rootPath, path, language.name + ".json");
- 
+
       if (!fs.existsSync(dirPath)) {
         createLanguageFile(__rootPath, path, i18nModule, name, []);
         this.languages[name] = {};
       } else {
         const code = fs.readFileSync(dirPath, { encoding: "utf8" });
 
-        let obj = JSON.parse(code);
+        let obj;
+        if (i18nModule) {
+          const ast = parse(code, {
+            sourceType: "module",
+            plugins: ["typescript", "javascript"],
+          });
+
+          traverse(ast, {
+            ObjectProperty: function (path) {
+              const key = path.node.key.value || path.node.key.name;
+              
+              const value =
+                path.node.value.value ??
+                path.node.value.name ??
+                path.node.value.quasis[0].value.raw;
+
+              obj[key] = value;
+            },
+          });
+        } else {
+          obj = JSON.parse(code);
+        }
+
         this.languages[name] = obj;
       }
       this.newLanguages[name] = [];

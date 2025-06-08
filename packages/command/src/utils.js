@@ -66,10 +66,8 @@ async function createLanguageFile(__rootPath, path, i18nModule, name, source) {
   dedup(source).forEach((item) => {
     data[item.id] = item.value;
   });
-  const file = tpl
-    .replace("$name", `'${name}'`)
-    .replace("$data", () => JSON.stringify(data))
-    .replace("$i18n", i18nModule);
+  
+  const file = tpl.replace("$data", () => JSON.stringify(data));
 
   let curFilePath = p.resolve(dirPath, name + ".json");
   // if (!fs.existsSync(curFilePath)) {

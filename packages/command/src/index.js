@@ -5,7 +5,6 @@ const Export = require("./export");
 const ImportExcel = require("./import");
 const Translate = require("./translate");
 const { replace } = require("lodash");
-const ReplaceT = require("./replace");
 
 module.exports = class I18n {
   command = null;
@@ -47,7 +46,6 @@ module.exports = class I18n {
       export: new Export(this.config, this.params),
       import: new ImportExcel(this.config, this.params),
       translate: new Translate(this.config, this.params),
-      replace: new ReplaceT(this.config, this.params),
     };
   }
 
