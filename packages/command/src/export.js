@@ -31,8 +31,13 @@ class ExportExcel {
   }
 
   writeXlsx() {
-    const { languages = [], output, __rootPath, i18nModule } = this.config;
-    const lang = languages[0]?.name || "zh-CN";
+    const {
+      languages = [],
+      output,
+      __rootPath,
+      zhLanguageCode = "zh-CN",
+    } = this.config;
+    const lang = languages[0]?.name || zhLanguageCode;
     let keys = [];
 
     const languageTexts = this.languages[lang];

@@ -48,7 +48,7 @@ module.exports = class Update {
           traverse(ast, {
             ObjectProperty: function (path) {
               const key = path.node.key.value || path.node.key.name;
-              
+
               const value =
                 path.node.value.value ??
                 path.node.value.name ??
@@ -92,7 +92,9 @@ module.exports = class Update {
   }
 
   md5Hash(str) {
-    str = str.trim();
+    if (str) {
+      str = str.trim();
+    }
     if (this.params && this.params.secretKey) {
       return hmacHash(str, this.params.secretKey);
     } else if (this.config && this.config.md5secretKey) {
@@ -313,12 +315,17 @@ module.exports = class Update {
   }
 
   writeLanguages() {
-    const { languages, __rootPath, i18nModule } = this.config;
+    const {
+      languages,
+      __rootPath,
+      i18nModule,
+      zhLanguageCode = "zh-CN",
+    } = this.config;
     languages.forEach((language) => {
       const { name, path } = language;
       const newLanguages = {};
       this.newLanguages[name].forEach((item) => {
-        newLanguages[item.id] = name === "zh-CN" ? item.chinese : "";
+        newLanguages[item.id] = name === zhLanguageCode ? item.chinese : "";
       });
       const newLanguageObj = Object.assign(this.languages[name], newLanguages);
       const source = [];
@@ -330,6 +337,8 @@ module.exports = class Update {
       }
       createLanguageFile(__rootPath, path, i18nModule, name, source);
     });
+
+    console.log(JSON.stringify(this.newLanguages));
   }
 
   run() {

@@ -29,8 +29,6 @@ module.exports = function (source) {
 
   const file = this.resourcePath;
 
-
-
   if (!/node_modules/.test(file)) {
     try {
       source = parserI18n(source, { realpath: file }, options);

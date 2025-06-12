@@ -120,7 +120,6 @@ function parserJSI18n(content, file, options, config = {}) {
   });
 
   if (ast.errors.length > 0) {
-    console.warn(ast.errors, relativePath, "relativePath");
     return content;
   }
 
@@ -334,8 +333,6 @@ function parserVueI18n(content, file, options) {
   const { descriptor, errors } = vueParseFn(content);
 
   if (errors.length > 0) {
-    console.warn(errors, filePath, " vue parse error");
-
     return content;
   }
 
@@ -395,6 +392,9 @@ function parserVueTemplate(template, options) {
   }
 
   const md5Hash = function (str) {
+    if (str) {
+      str = str.trim();
+    }
     if (options && options.md5secretKey) {
       return hmacHash(str, options.md5secretKey);
     }
@@ -556,6 +556,12 @@ function parserI18n(content, file, options) {
   const ignoreList = _ignore.list || [];
   const __includes = options.includes || [];
 
+  let entries = options?.entry?.dir || ".";
+
+  if (typeof entries === "string") {
+    entries = [entries];
+  }
+
   if (sameGit) {
     const gitIgnore = fs
       .readFileSync(p.resolve(process.cwd(), ".gitignore"))
@@ -567,6 +573,12 @@ function parserI18n(content, file, options) {
     let projectPath = getRootPath();
 
     const relativePath = p.relative(projectPath, filePath);
+
+    const entry = ignore().add(entries);
+    if (!entry.ignores(relativePath)) {
+      return content;
+    }
+
     const includes = ignore().add(__includes);
     const included = includes.ignores(relativePath);
     const ig = ignore().add(ignoreList);
@@ -581,7 +593,7 @@ function parserI18n(content, file, options) {
 
   if (!baseLocale) {
     baseLocale = {};
-    readChinese(languages);
+    readChinese(languages, options.zhLanguageCode);
   }
 
   if (/\.(ts|js)$/.test(filePath)) {

@@ -16,13 +16,14 @@ class Translate {
   }
 
   readFile() {
-    const languages = this.config.languages;
-    this.chinese = this.readLanguages("zh-CN");
+    const { languages, zhLanguageCode = "zh-CN" } = this.config;
+
+    this.chinese = this.readLanguages(zhLanguageCode);
     let needTranslateLangueges = this.params._[0]?.split?.(",");
 
     if (!needTranslateLangueges) {
       needTranslateLangueges = languages
-        .filter((item) => item.name !== "zh-CN")
+        .filter((item) => item.name !== zhLanguageCode)
         .map((item) => item.name);
     }
 
@@ -160,6 +161,7 @@ class Translate {
     let curLanguage = language.toLowerCase().trim();
     switch (curLanguage) {
       case "zh-cn":
+      case "zh-hans":
         // 简体中文
         curLanguage = "zh";
         break;
