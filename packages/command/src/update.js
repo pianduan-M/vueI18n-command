@@ -14,6 +14,7 @@ const {
   createLanguageFile,
   zhExt,
   zhExt2,
+  validateHashKey,
 } = require("./utils");
 
 module.exports = class Update {
@@ -21,6 +22,7 @@ module.exports = class Update {
   params = {};
   languages = {};
   newLanguages = {};
+  existLanguageKeys = [];
   constructor(config, params) {
     this.config = config;
     this.params = params;
@@ -300,6 +302,10 @@ module.exports = class Update {
   }
 
   validateKey(zh, key, file) {
+    if (this.params.clear) {
+      this.existLanguageKeys.push(key);
+    }
+
     for (let languageKey in this.languages) {
       if (
         !this.languages[languageKey][key] &&
@@ -337,13 +343,34 @@ module.exports = class Update {
       }
       createLanguageFile(__rootPath, path, i18nModule, name, source);
     });
+  }
 
-    console.log(JSON.stringify(this.newLanguages));
+  clearLanguageKey() {
+    const { languages } = this.config;
+
+    const clearKeys = [];
+
+    languages.forEach((language) => {
+      const { name } = language;
+      Object.keys(this.languages[name]).forEach((key) => {
+        if (validateHashKey(key)) {
+          if (!this.existLanguageKeys.includes(key)) {
+            delete this.languages[name][key];
+            clearKeys.push(key);
+          }
+        }
+      });
+    });
+
+    console.log(`清除${[...new Set(clearKeys)].join("\n")}`);
   }
 
   run() {
     this.readLanguagesConfig();
     this.readFile();
+    if (this.params.clear) {
+      this.clearLanguageKey();
+    }
     this.writeLanguages();
     console.log("i18n update suceess!");
   }

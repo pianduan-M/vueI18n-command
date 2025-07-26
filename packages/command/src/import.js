@@ -4,6 +4,22 @@ const xlsx = require("node-xlsx");
 const { createLanguageFile } = require("./utils");
 const lodash = require("lodash");
 
+function setValue(obj, key, value) {
+  if (!key) return;
+
+  const keys = key.split(".");
+
+  keys.forEach((k, i) => {
+    if (i === keys.length - 1) {
+      obj[k] = value;
+      return;
+    }
+
+    obj[k] = obj[k] || {};
+    obj = obj[k];
+  });
+}
+
 class ImportExcel {
   config = null;
   params = {};
@@ -61,7 +77,7 @@ class ImportExcel {
 
   readExcelFile() {
     const { _: params = [] } = this.params;
-    let [filePath] = params;
+    let [filePath, sheetIndex = 0] = params;
 
     if (!filePath) {
       console.error("no filePath param");
@@ -77,7 +93,7 @@ class ImportExcel {
 
     const workSheetsFromFile = xlsx.parse(fs.readFileSync(filePath));
 
-    const data = workSheetsFromFile?.[0]?.data || null;
+    const data = workSheetsFromFile?.[sheetIndex]?.data || null;
 
     this.format(data);
   }
@@ -96,9 +112,9 @@ class ImportExcel {
       for (let i = 1; i < keys.length; i++) {
         const name = keys[i];
         result[name] = result[name] || {};
-        result[name][key] = item[i];
 
-        lodash.set(result[name], key, item[i]);
+        setValue(result[name], key, item[i]);
+        // lodash.set(result[name], key, item[i]);
       }
     });
 

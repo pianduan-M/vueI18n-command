@@ -66,7 +66,7 @@ async function createLanguageFile(__rootPath, path, i18nModule, name, source) {
   dedup(source).forEach((item) => {
     data[item.id] = item.value;
   });
-  
+
   const file = tpl.replace("$data", () => JSON.stringify(data));
 
   let curFilePath = p.resolve(dirPath, name + ".json");
@@ -145,9 +145,13 @@ function vueParse(code) {
 
 // Hmac算法: 需要配置一个密钥（俗称加盐）
 function hmacHash(str, secretKey) {
-  const curSecretKey = secretKey || "suda-i18n";
+  const curSecretKey = secretKey || "vue-i18n";
   const md5 = crypto.createHmac("md5", curSecretKey);
   return md5.update(str).digest("hex");
+}
+
+function validateHashKey(key) {
+  return /^[a-zA-Z0-9_]{32}$/.test(key);
 }
 
 function hash(str) {
@@ -183,6 +187,30 @@ const NodeTypes = {
   DIRECTIVE: 7,
 };
 
+function getAllKeys(obj, prefix = "", keys = []) {
+  // 确保传入的是对象且不为null（因为typeof null === 'object'）
+  if (typeof obj !== "object" || obj === null) {
+    return keys;
+  }
+
+  Object.keys(obj).forEach((key) => {
+    const currentKey = prefix ? `${prefix}.${key}` : key;
+
+    // 如果当前属性的值是对象且不是数组（因为数组也是对象），则递归处理
+    if (
+      typeof obj[key] === "object" &&
+      obj[key] !== null &&
+      !Array.isArray(obj[key])
+    ) {
+      getAllKeys(obj[key], currentKey, keys);
+    } else {
+      keys.push(currentKey);
+    }
+  });
+
+  return keys;
+}
+
 module.exports = {
   createLanguageFile,
   scanFile,
@@ -193,6 +221,8 @@ module.exports = {
   guid,
   sleep,
   prettierJs,
+  validateHashKey,
+  getAllKeys,
   zhExt,
   zhExt2,
 };

@@ -50,7 +50,7 @@ module.exports = {
 
 
 ### 1. update
-``` vueI18n update ```
+``` vueI18n update [--clear]```
 
 收集项目中的中文，以 hash 为 key 存放指定文件目录，示例：
 
@@ -70,6 +70,7 @@ const obj = {
 	"文本1":"test"
 }
 ```
+`--clear` 参数会清空没有使用的 key (只会清除 32 位 hash 的 key)
 
 ### 2. translate
 ```vueI18n translate [language]```
@@ -104,3 +105,7 @@ const obj = {
 ### 4. import
 ``` vueI18n import ```
 把 excel 文件转成 locale json 文件，excel 格式参考 export 导出格式
+
+### 5. server
+``` vueI18n server [--port]```
+读取本地的 locale 文件，启动一个 http 服务，提供修改服务
