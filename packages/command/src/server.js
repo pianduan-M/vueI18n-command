@@ -1,11 +1,12 @@
 const fs = require("fs");
 const p = require("path");
-const { default: traverse } = require("@babel/traverse");
-const { parse } = require("@babel/parser");
 const http = require("http");
 const url = require("url");
 const lodash = require("lodash");
-const { createLanguageFile, getAllKeys } = require("./utils");
+const {
+  createLanguageFile,
+  getAllKeys,
+} = require("@pianduan/vue-i18n-command-utils");
 
 module.exports = class I18nServer {
   config = null;
@@ -32,27 +33,8 @@ module.exports = class I18nServer {
         const code = fs.readFileSync(dirPath, { encoding: "utf8" });
 
         let obj;
-        if (i18nModule) {
-          const ast = parse(code, {
-            sourceType: "module",
-            plugins: ["typescript", "javascript"],
-          });
 
-          traverse(ast, {
-            ObjectProperty: function (path) {
-              const key = path.node.key.value || path.node.key.name;
-
-              const value =
-                path.node.value.value ??
-                path.node.value.name ??
-                path.node.value.quasis[0].value.raw;
-
-              obj[key] = value;
-            },
-          });
-        } else {
-          obj = JSON.parse(code);
-        }
+        obj = JSON.parse(code);
 
         this.languages[name] = obj;
       }

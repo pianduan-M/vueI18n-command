@@ -1,7 +1,11 @@
 const p = require("path");
 const fs = require("fs");
 const xlsx = require("node-xlsx");
-const { createLanguageFile } = require("./utils");
+const {
+  createLanguageFile,
+  readLanguagesFile,
+  getAllKeys,
+} = require("@pianduan/vue-i18n-command-utils");
 const lodash = require("lodash");
 
 function setValue(obj, key, value) {
@@ -121,9 +125,39 @@ class ImportExcel {
     this.languageData = result;
   }
 
+  syncLanguage() {
+    console.log(`同步到本地语言包中...`);
+
+    const { languages } = this.config;
+
+    if (!languages || !languages.length) return;
+
+    const localLanguageData = readLanguagesFile(this.config);
+
+    const allKeys = getAllKeys(localLanguageData[languages[0].name]);
+
+    languages.forEach((item) => {
+      allKeys.forEach((key) => {
+        const value = lodash.get(this.languageData[item.name], key);
+        if (value) {
+          lodash.set(localLanguageData[item.name], key, value);
+        }
+      });
+    });
+
+    this.languageData = localLanguageData;
+    console.log(`同步成功！`);
+  }
+
   run() {
     this.readExcelFile();
+
+    if (this.params.sync) {
+      this.syncLanguage();
+    }
+
     this.writeLanguages();
+
     console.log("import excel locales successfully");
   }
 }

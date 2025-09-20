@@ -13,6 +13,7 @@
     "@babel/parser": "^7.26.1",
     "@babel/traverse": "^7.25.9",
     "@babel/types": "^7.26.0",
+    "@pianduan/vue-i18n-command-utils": "workspace:^",
     "@rollup/plugin-json": "^6.1.0",
     "@vue/compiler-sfc": "^3.5.12",
     "crypto": "^1.0.1",
@@ -21,7 +22,6 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.1",
     "@rollup/plugin-node-resolve": "^15.3.0",
-    "rollup": "^4.25.0",
-    "rollup-plugin-terser": "^7.0.2"
+    "rollup": "^4.25.0"
   }
 }

@@ -1,0 +1,22 @@
+{
+  "name": "@pianduan/vue-i18n-parser-vite",
+  "version": "0.0.1",
+  "description": "vue 项目 i18n 辅助工具",
+  "scripts": {},
+  "type": "module",
+  "main": "index.js",
+  "keywords": [
+    "vue",
+    "i18n",
+    "vue-i18n"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pianduan-M/vueI18n-command"
+  },
+  "author": "pianduan",
+  "license": "MIT",
+  "dependencies": {
+    "@pianduan/vue-i18n-command-utils": "^0.0.1"
+  }
+}

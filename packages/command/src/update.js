@@ -1,21 +1,22 @@
 const fs = require("fs");
 const p = require("path");
 const { default: traverse } = require("@babel/traverse");
-const { isString, isObject, isArray } = require("lodash");
-const { parse } = require("@babel/parser");
 const t = require("@babel/types");
+const { get, set } = require("lodash");
 
 const {
   babelParse,
-  vueParse,
+  parseVueFile,
   hmacHash,
   hash,
   scanFile,
   createLanguageFile,
   zhExt,
-  zhExt2,
   validateHashKey,
-} = require("./utils");
+  getAllKeys,
+  readLanguagesFile,
+  IgnoreNextLineDirective,
+} = require("@pianduan/vue-i18n-command-utils");
 
 module.exports = class Update {
   config = null;
@@ -29,43 +30,12 @@ module.exports = class Update {
   }
 
   readLanguagesConfig() {
-    const { languages, __rootPath, i18nModule = false } = this.config;
-    languages.forEach((language) => {
-      const { name, path } = language;
-      let dirPath = p.resolve(__rootPath, path, language.name + ".json");
+    const { languages } = this.config;
 
-      if (!fs.existsSync(dirPath)) {
-        createLanguageFile(__rootPath, path, i18nModule, name, []);
-        this.languages[name] = {};
-      } else {
-        const code = fs.readFileSync(dirPath, { encoding: "utf8" });
+    this.languages = readLanguagesFile(this.config);
 
-        let obj;
-        if (i18nModule) {
-          const ast = parse(code, {
-            sourceType: "module",
-            plugins: ["typescript", "javascript"],
-          });
-
-          traverse(ast, {
-            ObjectProperty: function (path) {
-              const key = path.node.key.value || path.node.key.name;
-
-              const value =
-                path.node.value.value ??
-                path.node.value.name ??
-                path.node.value.quasis[0].value.raw;
-
-              obj[key] = value;
-            },
-          });
-        } else {
-          obj = JSON.parse(code);
-        }
-
-        this.languages[name] = obj;
-      }
-      this.newLanguages[name] = [];
+    languages.forEach((item) => {
+      this.newLanguages[item.name] = [];
     });
   }
 
@@ -116,7 +86,12 @@ module.exports = class Update {
 
     const _this = this;
 
+    const ignoreNextLineDirective = new IgnoreNextLineDirective();
+
     const visitor = {
+      enter: function (path) {
+        ignoreNextLineDirective.collectIgnoreNextLineDirective(path);
+      },
       JSXText(path) {
         if (
           t.isCallExpression(path.parent) &&
@@ -124,6 +99,11 @@ module.exports = class Update {
         ) {
           return;
         }
+
+        if (ignoreNextLineDirective.isIgnoreLine(path)) {
+          return;
+        }
+
         if (zhExt.test(path.toString())) {
           const value = path.toString().trim();
           const id = _this.md5Hash(value);
@@ -137,6 +117,11 @@ module.exports = class Update {
         ) {
           return;
         }
+
+        if (ignoreNextLineDirective.isIgnoreLine(path)) {
+          return;
+        }
+
         if (zhExt.test(path.toString())) {
           // 处理这种情况
           // <% if (data.usage === 0) { %>
@@ -173,11 +158,25 @@ module.exports = class Update {
         if (t.isTSLiteralType(path.parent)) {
           return;
         }
-        if (
-          t.isCallExpression(path.parent) &&
-          path.parent.callee.name === i18nFnName
-        ) {
+
+        if (ignoreNextLineDirective.isIgnoreLine(path)) {
           return;
+        }
+
+        if (t.isCallExpression(path.parent)) {
+          if (path.parent.callee.name === i18nFnName) {
+            return;
+          }
+
+          const parentCallee = path.parent.callee;
+
+          if (
+            parentCallee.type === "MemberExpression" &&
+            parentCallee.property?.name === "log" &&
+            parentCallee.object?.name === "console"
+          ) {
+            return;
+          }
         }
         if (zhExt.test(path.toString())) {
           const value = path.node.value.toString();
@@ -187,6 +186,10 @@ module.exports = class Update {
       },
 
       CallExpression(path) {
+        if (ignoreNextLineDirective.isIgnoreLine(path)) {
+          return;
+        }
+
         if (path.node.callee.name === i18nFnName) {
           let key = path.node.arguments[0].value;
           // 如果key是中文（如：_i18n('测试中文')），需要将中文传进去
@@ -201,7 +204,8 @@ module.exports = class Update {
   }
 
   vueSfcOpt(code, file) {
-    const { scriptContent, scriptSetupContent, templateAst } = vueParse(code);
+    const { scriptContent, scriptSetupContent, templateAst } =
+      parseVueFile(code);
 
     if (scriptContent) {
       this.babelOpt(scriptContent, file);
@@ -365,12 +369,37 @@ module.exports = class Update {
     console.log(`清除${[...new Set(clearKeys)].join("\n")}`);
   }
 
+  syncLanguages() {
+    const { languages } = this.config;
+    const syncLocaleObjName = languages[0].name;
+    if (!syncLocaleObjName) return;
+    const syncLocaleObj = this.languages[syncLocaleObjName];
+
+    const allKeys = getAllKeys(syncLocaleObj);
+
+    allKeys.forEach((key) => {
+      languages.slice(1).forEach((language, i) => {
+        const { name } = language;
+        const localeObj = this.languages[name];
+        if (!get(localeObj, key)) {
+          set(localeObj, key, "");
+        }
+      });
+    });
+  }
+
   run() {
     this.readLanguagesConfig();
     this.readFile();
+
     if (this.params.clear) {
       this.clearLanguageKey();
     }
+
+    if (this.params.sync) {
+      this.syncLanguages();
+    }
+
     this.writeLanguages();
     console.log("i18n update suceess!");
   }

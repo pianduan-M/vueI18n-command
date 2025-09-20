@@ -1,42 +1,48 @@
-const { parse } = require("@babel/parser");
-const { default: traverse } = require("@babel/traverse");
-const { default: generate } = require("@babel/generator");
-const t = require("@babel/types");
-const { addNamed } = require("@babel/helper-module-imports");
-const crypto = require("crypto");
+const ignore = require("ignore");
 const fs = require("fs");
 const p = require("path");
-const ignore = require("ignore");
-const { parse: vueParseFn } = require("@vue/compiler-sfc");
+const t = require("@babel/types");
+const { babelParse, parseVueFile } = require("./parse");
+const {
+  md5Hash,
+  getRootPath,
+  isConsoleLogNode,
+  zhExt,
+  VueNodeTypesEnum,
+} = require("./common");
+const { readLocaleFile } = require("./file");
+const { addNamed } = require("@babel/helper-module-imports");
+const { default: generate } = require("@babel/generator");
+const traverse = require("@babel/traverse").default;
+const {
+  IgnoreNextLineDirective,
+  IgnoreVueTemplateNextLineDirective,
+} = require("./directives");
 
-const getRootPath = process.env.UNI_INPUT_DIR
-  ? () => process.env.UNI_INPUT_DIR
-  : () => process.cwd();
+function createElementStr(content, node) {
+  let attrsStr = "";
+  const { type, attrs } = node;
+  Object.keys(attrs).forEach((k) => {
+    const v = attrs[k];
+    if (typeof v === "boolean") {
+      if (v) {
+        attrsStr += `${k} `;
+      }
+      return;
+    }
 
-function hash(str) {
-  const md5 = crypto.createHash("md5");
-  return md5.update(str).digest("hex");
+    attrsStr += `${k}=${v} `;
+  });
+
+  return `<${type} ${attrsStr}>${content}</${type}>\n`;
 }
 
-// Hmac算法: 需要配置一个密钥（俗称加盐）
-function hmacHash(str, secretKey) {
-  var curSecretKey = secretKey || "suda-i18n";
-  var md5 = crypto.createHmac("md5", curSecretKey);
-  return md5.update(str).digest("hex");
+function getLocale() {
+  return global.__vueI18nBaseLocale;
 }
 
-const zhExt = /[\u4e00-\u9fa5]+/;
-
-let baseLocale = null;
-
-function hasLocale(id) {
-  if (!baseLocale) {
-    return false;
-  }
-  return !!baseLocale[id];
-}
-
-function noLocale(value, id, relativePath) {
+function noLocale(value, id) {
+  const baseLocale = getLocale();
   if (!baseLocale) {
     return false;
   }
@@ -53,47 +59,9 @@ function noLocale(value, id, relativePath) {
   return false;
 }
 
-function readChinese(languages, zhLanguageCode = "zh-CN") {
-  const chinesePath = languages.find(function (language) {
-    return language.name === zhLanguageCode;
-  }).path;
-
-  const chineseFunc = function (chinesePath, k) {
-    let code;
-    let filePath = p.resolve(
-      getRootPath(),
-      chinesePath,
-      `${zhLanguageCode}.json`
-    );
-    code = fs.readFileSync(filePath, "utf8");
-
-    // todo 支持 js 文件
-    if (!fs.existsSync(filePath)) {
-      // filePath = p.resolve(getRootPath(), chinesePath, "zh-CN.js");
-      // co;
-    }
-
-    baseLocale = JSON.parse(code);
-  };
-  if (typeof chinesePath === "string") {
-    chineseFunc(chinesePath);
-  } else if (Array.isArray(chinesePath)) {
-    chinesePath.forEach(function (p) {
-      chineseFunc(p);
-    });
-  }
-}
-
-function parserJSI18n(content, file, options, config = {}) {
+function transformJsCode(content, file, options, config = {}) {
   const { realpath: relativePath } = file;
   const filePath = file.relativePath;
-
-  const md5Hash = function (str) {
-    if (options && options.md5secretKey) {
-      return hmacHash(str, options.md5secretKey);
-    }
-    return hash(str);
-  };
 
   const importInfo = options.importInfo;
 
@@ -107,17 +75,7 @@ function parserJSI18n(content, file, options, config = {}) {
     importLocal = "this.$t";
   }
 
-  const plugins = ["typescript", "decorators-legacy"];
-
-  if (/.*(tsx|jsx)$/.test(filePath) || config.isTs) {
-    plugins.push("jsx");
-  }
-
-  const ast = parse(content, {
-    sourceType: "module",
-    errorRecovery: true,
-    plugins: plugins,
-  });
+  const ast = babelParse(content, filePath);
 
   if (ast.errors.length > 0) {
     return content;
@@ -127,7 +85,12 @@ function parserJSI18n(content, file, options, config = {}) {
 
   let i18nFnName = importLocal;
 
+  const ignoreNextLineDirective = new IgnoreNextLineDirective();
+
   const visitor = {
+    enter: function (path) {
+      ignoreNextLineDirective.collectIgnoreNextLineDirective(path);
+    },
     Program: {
       exit: function (path) {
         if (needI18n && importInfo) {
@@ -163,10 +126,15 @@ function parserJSI18n(content, file, options, config = {}) {
       ) {
         return;
       }
+
+      if (ignoreNextLineDirective.isIgnoreLine(path)) {
+        return;
+      }
+
       if (zhExt.test(path.toString())) {
         const value = path.toString().trim();
-        let id = md5Hash(value);
-        if (noLocale(value, id, relativePath)) {
+        let id = md5Hash(value, options.md5secretKey);
+        if (noLocale(value, id)) {
           return;
         }
         const origininalValue = path?.node?.value;
@@ -177,6 +145,7 @@ function parserJSI18n(content, file, options, config = {}) {
           const spacesRight = origininalValue.substring(
             valueIndex + trimmedValue.length
           );
+
           path.replaceWithMultiple([
             t.jsxText(spacesLeft),
             t.jsxExpressionContainer(
@@ -189,29 +158,27 @@ function parserJSI18n(content, file, options, config = {}) {
       }
     },
     TemplateLiteral: function (path) {
-      var _a;
       if (
         t.isCallExpression(path.parent) &&
-        ((_a = path.parent.callee) === null || _a === void 0
-          ? void 0
-          : _a.name) === i18nFnName
+        path.parent?.callee?.name === i18nFnName
       ) {
         return;
       }
+
+      if (ignoreNextLineDirective.isIgnoreLine(path)) {
+        return;
+      }
+
       if (zhExt.test(path.toString())) {
-        // 处理这种情况
-        // <% if (data.usage === 0) { %>
-        // ${'主要用于展示'}
-        // <% } else if(data.usage === 1) { %>
         const node = path.node;
-        let isCh_1 = false;
+        let isCh = false;
         node.quasis &&
           node.quasis.forEach(function (item) {
             if (zhExt.test(item.value.raw)) {
-              isCh_1 = true;
+              isCh = true;
             }
           });
-        if (isCh_1) {
+        if (isCh) {
           const variables_1 = [];
           let i_1 = 0;
           const value = path
@@ -229,8 +196,8 @@ function parserJSI18n(content, file, options, config = {}) {
               });
               return "{{@".concat(i_1, "}}");
             });
-          var id = md5Hash(value);
-          if (noLocale(value, id, relativePath)) {
+          var id = md5Hash(value, options.md5secretKey);
+          if (noLocale(value, id)) {
             return;
           }
           path.replaceWith(
@@ -251,7 +218,6 @@ function parserJSI18n(content, file, options, config = {}) {
       }
     },
     StringLiteral: function (path) {
-      var _a, _b;
       if (t.isTSLiteralType(path.parent)) {
         return;
       }
@@ -261,20 +227,24 @@ function parserJSI18n(content, file, options, config = {}) {
       ) {
         return;
       }
-      var value =
-        (_b =
-          (_a = path === null || path === void 0 ? void 0 : path.node) ===
-            null || _a === void 0
-            ? void 0
-            : _a.value) === null || _b === void 0
-          ? void 0
-          : _b.toString();
+
+      if (isConsoleLogNode(path)) {
+        return;
+      }
+
+      if (ignoreNextLineDirective.isIgnoreLine(path)) {
+        return;
+      }
+
+      const value = path?.node?.value?.toString?.();
+
       if (zhExt.test(value)) {
-        var id = md5Hash(value);
+        const id = md5Hash(value, options.md5secretKey);
         if (noLocale(value, id, relativePath)) {
           return;
         }
         if (t.isJSXAttribute(path.parent)) {
+          transformCode;
           path.replaceWith(
             t.jsxExpressionContainer(
               t.callExpression(t.identifier(importLocal), [t.stringLiteral(id)])
@@ -309,28 +279,8 @@ function parserJSI18n(content, file, options, config = {}) {
   }
 }
 
-function createElementStr(content, node) {
-  let attrsStr = "";
-  const { type, attrs } = node;
-  Object.keys(attrs).forEach((k) => {
-    const v = attrs[k];
-    if (typeof v === "boolean") {
-      if (v) {
-        attrsStr += `${k} `;
-      }
-      return;
-    }
-
-    attrsStr += `${k}=${v} `;
-  });
-
-  return `<${type} ${attrsStr}>${content}</${type}>\n`;
-}
-
-function parserVueI18n(content, file, options) {
-  const filePath = file.realpath;
-
-  const { descriptor, errors } = vueParseFn(content);
+function transformVueCode(content, file, options) {
+  const { descriptor, errors } = parseVueFile(content);
 
   if (errors.length > 0) {
     return content;
@@ -342,14 +292,14 @@ function parserVueI18n(content, file, options) {
 
   let templateRes;
   if (template && template.content) {
-    const templateAstRes = parserVueTemplate(template, options);
+    const templateAstRes = transformVueTemplateCode(template, options);
     templateRes = createElementStr(templateAstRes.content, template);
     needI18n = templateAstRes.needI18n;
   }
 
   let scriptSetupRes;
   if (scriptSetup && scriptSetup.content) {
-    scriptSetupRes = parserJSI18n(scriptSetup.content, file, options, {
+    scriptSetupRes = transformJsCode(scriptSetup.content, file, options, {
       isTs: scriptSetup.lang === "ts",
       needI18n,
     });
@@ -359,7 +309,7 @@ function parserVueI18n(content, file, options) {
 
   let scriptRes;
   if (script && script.content) {
-    scriptRes = parserJSI18n(script.content, file, options, {
+    scriptRes = transformJsCode(script.content, file, options, {
       isTs: script.lang === "ts",
       needI18n,
     });
@@ -372,9 +322,10 @@ function parserVueI18n(content, file, options) {
     .join("")}`;
 }
 
-function parserVueTemplate(template, options) {
+function transformVueTemplateCode(template, options) {
   let result = "";
   const ast = template.ast;
+
   let templateSource = ast.source;
   const sourceArr = [];
   const firstIndex = template.loc.start.offset;
@@ -391,18 +342,18 @@ function parserVueTemplate(template, options) {
     importLocal = "$t";
   }
 
-  const md5Hash = function (str) {
-    if (str) {
-      str = str.trim();
-    }
-    if (options && options.md5secretKey) {
-      return hmacHash(str, options.md5secretKey);
-    }
-    return hash(str);
-  };
+  const ignoreVueTemplateNextLineDirective =
+    new IgnoreVueTemplateNextLineDirective();
 
   const visitor = {
-    1(node) {
+    [VueNodeTypesEnum.COMMENT](node) {
+      ignoreVueTemplateNextLineDirective.collectIgnoreNextLineDirective(node);
+    },
+    [VueNodeTypesEnum.ELEMENT](node) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       if (node.props && node.props.length) {
         node.props.forEach((prop) => {
           const type = prop?.type;
@@ -421,11 +372,15 @@ function parserVueTemplate(template, options) {
         });
       }
     },
-    2(node) {
+    [VueNodeTypesEnum.TEXT](node) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       if (node.content && zhExt.test(node.content)) {
         const value = node.content.trim();
 
-        const id = md5Hash(value);
+        const id = md5Hash(value, options.md5secretKey);
 
         if (noLocale(value, id)) {
           return;
@@ -441,7 +396,11 @@ function parserVueTemplate(template, options) {
         needI18n = true;
       }
     },
-    4(node) {
+    [VueNodeTypesEnum.SIMPLE_EXPRESSION](node) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       if (node.ast) {
         const { type, consequent, alternate } = node.ast;
         if (type === "ConditionalExpression") {
@@ -466,9 +425,13 @@ function parserVueTemplate(template, options) {
     },
 
     StringLiteral(node, source) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       const value = node?.value?.trim?.();
       if (value && zhExt.test(value)) {
-        const id = md5Hash(value);
+        const id = md5Hash(value, options.md5secretKey);
 
         if (noLocale(value, id)) {
           return source;
@@ -486,22 +449,30 @@ function parserVueTemplate(template, options) {
 
       return source;
     },
-    5(node) {
+    [VueNodeTypesEnum.INTERPOLATION](node) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       const type = node.content.type;
       const excute = visitor[type];
       if (excute) {
         excute(node.content);
       }
     },
-    6(node) {
+    [VueNodeTypesEnum.ATTRIBUTE](node) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       const { type, content } = node?.value || {};
 
-      if (type === 2 && zhExt.test(content)) {
+      if (type === VueNodeTypesEnum.TEXT && zhExt.test(content)) {
         const { source, start, end } = node.loc;
 
         const value = content.trim();
 
-        const id = md5Hash(value);
+        const id = md5Hash(value, options.md5secretKey);
 
         if (noLocale(value, id)) {
           return;
@@ -522,7 +493,11 @@ function parserVueTemplate(template, options) {
         needI18n = true;
       }
     },
-    7(node) {
+    [VueNodeTypesEnum.DIRECTIVE](node) {
+      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+        return;
+      }
+
       if (!node.exp) return;
       const type = node.exp.type;
       const excute = visitor[type];
@@ -548,15 +523,17 @@ function parserVueTemplate(template, options) {
   return { content: result, needI18n };
 }
 
-function parserI18n(content, file, options) {
+exports.transformCode = function transformCode(content, file, options) {
   const filePath = file.realpath;
   const _ignore = options.ignore || {};
   const sameGit = _ignore.sameGit;
-  const languages = options.languages;
+  const languages = options.languages || [];
   const ignoreList = _ignore.list || [];
   const __includes = options.includes || [];
 
-  let entries = options?.entry?.dir || ".";
+  const rootPath = getRootPath();
+
+  let entries = options?.entry?.dir || rootPath;
 
   if (typeof entries === "string") {
     entries = [entries];
@@ -564,15 +541,13 @@ function parserI18n(content, file, options) {
 
   if (sameGit) {
     const gitIgnore = fs
-      .readFileSync(p.resolve(process.cwd(), ".gitignore"))
+      .readFileSync(p.resolve(rootPath, ".gitignore"))
       .toString();
     ignoreList.push.apply(ignoreList, gitIgnore.split("\n"));
   }
 
   try {
-    let projectPath = getRootPath();
-
-    const relativePath = p.relative(projectPath, filePath);
+    const relativePath = p.relative(rootPath, filePath);
 
     const entry = ignore().add(entries);
     if (!entry.ignores(relativePath)) {
@@ -591,23 +566,22 @@ function parserI18n(content, file, options) {
     return content;
   }
 
-  if (!baseLocale) {
-    baseLocale = {};
-    readChinese(languages, options.zhLanguageCode);
+  if (!global.__vueI18nBaseLocale) {
+    global.__vueI18nBaseLocale = readLocaleFile(
+      languages,
+      options.zhLanguageCode || languages[0]?.name
+    );
   }
 
   if (/\.(ts|js)$/.test(filePath)) {
-    return parserJSI18n(content, file, options);
+    return transformJsCode(content, file, options);
   } else if (/\.vue$/.test(filePath)) {
     if (/<(template|script|style)[\s>]/g.test(content)) {
-      return parserVueI18n(content, file, options);
+      return transformVueCode(content, file, options);
     } else {
-      return parserJSI18n(content, file, options);
+      return transformJsCode(content, file, options);
     }
   }
 
   return content;
-}
-
-exports.parserI18n = parserI18n;
-exports.getRootPath = getRootPath;
+};

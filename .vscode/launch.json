@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node", // 调试器类型，调试Node就是node
+      "request": "launch", // 启动模式：launch（由VSCode启动程序）或 attach（附加到已运行的程序）
+      "name": "Launch Program", // 配置的名称，显示在下拉列表中
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${file}" // 要启动的入口文件
+      // 你也可以用 "${file}" 来调试当前活跃的文件
+    }
+  ]
+}

@@ -1,15 +1,15 @@
 const resolve = require("@rollup/plugin-node-resolve");
 const commonjs = require("@rollup/plugin-commonjs");
-const { terser } = require("rollup-plugin-terser");
 const json = require("@rollup/plugin-json");
-const pkg = require("../../package.json");
+const pkg = require("./package.json");
+const copy = require("rollup-plugin-copy");
 
 module.exports = [
   {
-    input: "./src/webpack.js",
+    input: "index.js",
     output: [
       {
-        file: "./lib/webpack.cjs", // CommonJS 输出路径
+        file: "./lib/index.cjs", // CommonJS 输出路径
         format: "cjs",
         exports: "auto",
       },
@@ -17,25 +17,40 @@ module.exports = [
     external: Object.keys(pkg.dependencies || {}), // 排除 node_modules
     plugins: [
       json(),
-      resolve(), // 解析第三方依赖
+      // resolve(), // 解析第三方依赖
       commonjs(), // 转换 CommonJS 模块
-      // terser() // 代码压缩
+
+      copy({
+        targets: [
+          {
+            src: "src/js-tpl/*",
+            dest: "lib/js-tpl",
+          },
+        ],
+      }),
     ],
   },
   {
-    input: "./src/vite.js",
+    input: "index.js",
     output: [
       {
-        file: "./lib/vite.mjs", // ESM 输出路径
+        file: "./lib/index.mjs", // ESM 输出路径
         format: "esm",
       },
     ],
     external: Object.keys(pkg.dependencies || {}), // 排除 node_modules
     plugins: [
       json(),
-      resolve(), // 解析第三方依赖
+      // resolve(), // 解析第三方依赖
       commonjs(), // 转换 CommonJS 模块
-      // terser() // 代码压缩
+      copy({
+        targets: [
+          {
+            src: "src/js-tpl/*",
+            dest: "lib/js-tpl",
+          },
+        ],
+      }),
     ],
   },
 ];

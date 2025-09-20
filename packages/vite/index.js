@@ -1,14 +1,15 @@
-const { parserI18n } = require("./utils");
+import i18nUtils from "@pianduan/vue-i18n-command-utils";
 
-module.exports = function (options) {
+export default function (options = {}) {
   return {
-    name: "vite-plugin-react-i18n",
+    name: "@pianduan/vue-i18n-parser-vite",
     enforce: "pre",
     transform: function (code, file) {
-      var res = code;
+      let res = code;
+
       if (!/node_modules/.test(file)) {
         if (/.(js|ts|tsx|jsx|vue)$/.test(file)) {
-          res = parserI18n(code, { realpath: file }, options);
+          res = i18nUtils.transformCode(code, { realpath: file }, options);
         }
       }
 
@@ -18,4 +19,4 @@ module.exports = function (options) {
       };
     },
   };
-};
+}

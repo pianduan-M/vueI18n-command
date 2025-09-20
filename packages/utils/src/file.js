@@ -2,9 +2,9 @@ const ignore = require("ignore");
 const fs = require("fs");
 const p = require("path");
 const { parse } = require("@babel/parser");
-const { parse: vueParseFn } = require("@vue/compiler-sfc");
-const crypto = require("crypto");
+
 const prettier = require("prettier");
+const { traverse } = require("@babel/types");
 
 function prettierJs(data, config = {}) {
   const defaultConfig = {
@@ -70,13 +70,8 @@ async function createLanguageFile(__rootPath, path, i18nModule, name, source) {
   const file = tpl.replace("$data", () => JSON.stringify(data));
 
   let curFilePath = p.resolve(dirPath, name + ".json");
-  // if (!fs.existsSync(curFilePath)) {
-  //   curFilePath = p.resolve(dirPath, name + '.js')
-  // }
-  // const res = JSON.stringify(file).replaceAll(/\\/g, '')
-  let res = await prettierJs(file);
 
-  // console.log(res, 'res')
+  let res = await prettierJs(file);
 
   fs.writeFileSync(curFilePath, res, {
     encoding: "utf8",
@@ -112,117 +107,102 @@ function scanFile(dirPath, config, fn) {
   }
 }
 
-function babelParse(code, file) {
-  const ast = parse(code, {
-    sourceType: "module",
-    errorRecovery: true,
-    plugins: [
-      "typescript",
-      "decorators-legacy",
-      /.*(tsx|jsx)$/.test(file) && "jsx",
-    ].filter((n) => n),
-  });
+function readLanguagesFile(config) {
+  const languagesData = {};
 
-  if (ast.errors.length > 0) {
-    console.error(ast.errors);
-    return;
-  }
-  return ast;
-}
+  const { languages, __rootPath, i18nModule = false } = config;
 
-function vueParse(code) {
-  const { descriptor } = vueParseFn(code);
-  const { script, scriptSetup, template } = descriptor;
+  languages.forEach((language) => {
+    const { name, path } = language;
+    let dirPath = p.resolve(__rootPath, path, language.name + ".json");
 
-  const templateAst = template?.ast;
-
-  return {
-    scriptContent: script?.content,
-    scriptSetupContent: scriptSetup?.content,
-    templateAst,
-  };
-}
-
-// Hmac算法: 需要配置一个密钥（俗称加盐）
-function hmacHash(str, secretKey) {
-  const curSecretKey = secretKey || "vue-i18n";
-  const md5 = crypto.createHmac("md5", curSecretKey);
-  return md5.update(str).digest("hex");
-}
-
-function validateHashKey(key) {
-  return /^[a-zA-Z0-9_]{32}$/.test(key);
-}
-
-function hash(str) {
-  const md5 = crypto.createHash("md5");
-  return md5.update(str).digest("hex");
-}
-
-/**
- * 生成 8 位随机数字。
- *
- * @return {string} 8位随机数字
- */
-function guid() {
-  function s4() {
-    return Math.floor((1 + Math.random()) * 0x10000)
-      .toString(16)
-      .substring(1);
-  }
-  return s4() + s4() + s4();
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-const zhExt = /[\u4e00-\u9fa5]+/;
-const zhExt2 = /[\u4e00-\u9fa5]+/g;
-
-const NodeTypes = {
-  ELEMENT: 1,
-  TEXT: 2,
-  ATTRIBUTE: 6,
-  DIRECTIVE: 7,
-};
-
-function getAllKeys(obj, prefix = "", keys = []) {
-  // 确保传入的是对象且不为null（因为typeof null === 'object'）
-  if (typeof obj !== "object" || obj === null) {
-    return keys;
-  }
-
-  Object.keys(obj).forEach((key) => {
-    const currentKey = prefix ? `${prefix}.${key}` : key;
-
-    // 如果当前属性的值是对象且不是数组（因为数组也是对象），则递归处理
-    if (
-      typeof obj[key] === "object" &&
-      obj[key] !== null &&
-      !Array.isArray(obj[key])
-    ) {
-      getAllKeys(obj[key], currentKey, keys);
+    if (!fs.existsSync(dirPath)) {
+      createLanguageFile(__rootPath, path, i18nModule, name, []);
+      this.languages[name] = {};
     } else {
-      keys.push(currentKey);
+      const code = fs.readFileSync(dirPath, { encoding: "utf8" });
+
+      let obj;
+      if (i18nModule) {
+        const ast = parse(code, {
+          sourceType: "module",
+          plugins: ["typescript", "javascript"],
+        });
+
+        traverse(ast, {
+          ObjectProperty: function (path) {
+            const key = path.node.key.value || path.node.key.name;
+
+            const value =
+              path.node.value.value ??
+              path.node.value.name ??
+              path.node.value.quasis[0].value.raw;
+
+            obj[key] = value;
+          },
+        });
+      } else {
+        obj = JSON.parse(code);
+      }
+
+      languagesData[name] = obj;
     }
   });
 
-  return keys;
+  return languagesData;
+}
+
+function readLocaleFile(languages, languageName = "zh-CN") {
+  let locale = {};
+
+  if (!languages || !languages.length) {
+    return locale;
+  }
+
+  const chinesePath = languages.find(function (language) {
+    return language.name === languageName;
+  }).path;
+
+  if (!chinesePath) {
+    return locale;
+  }
+
+  const chineseFunc = (chinesePath) => {
+    let code;
+    let filePath = p.resolve(
+      getRootPath(),
+      chinesePath,
+      `${languageName}.json`
+    );
+    code = fs.readFileSync(filePath, "utf8");
+
+    return JSON.parse(code);
+  };
+
+  if (typeof chinesePath === "string") {
+    locale = chineseFunc(chinesePath);
+  } else if (Array.isArray(chinesePath)) {
+    chinesePath.forEach(function (p) {
+      const result = chineseFunc(p);
+
+      if (!locale) {
+        locale = result;
+      } else {
+        locale = {
+          ...locale,
+          ...result,
+        };
+      }
+    });
+  }
+
+  return locale;
 }
 
 module.exports = {
   createLanguageFile,
   scanFile,
-  babelParse,
-  vueParse,
-  hmacHash,
-  hash,
-  guid,
-  sleep,
   prettierJs,
-  validateHashKey,
-  getAllKeys,
-  zhExt,
-  zhExt2,
+  readLanguagesFile,
+  readLocaleFile,
 };
