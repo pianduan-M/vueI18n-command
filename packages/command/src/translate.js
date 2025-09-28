@@ -83,6 +83,12 @@ class Translate {
       const info = languages.find((n) => n.name === curLanguage);
       const words = this.translateTable[curLanguage];
 
+      const placeholder = "%&";
+
+      words.forEach((item) => {
+        item.chinese = item.chinese.replace(new RegExp("\n", "g"), placeholder);
+      });
+
       const list = this.sliceWords(words);
       const newData = {
         ...this.translateSource[curLanguage],
@@ -106,13 +112,19 @@ class Translate {
           info.name
         );
 
+        function formatChinese2(value) {
+          return value.replace(/\@\s*([0-9]+)/g, ($1, $2) => `{{@${$2}}}`);
+        }
+
         for (let i = 0; i < data.length; i++) {
           const target = item.find((n) => formatChinese(n) === data[i].src);
-          const translated = data[i].dst.replace(
-            /\@\s*([0-9]+)/g,
-            ($1, $2) => `{{@${$2}}}`
-          );
+
           if (target) {
+            const translated = formatChinese2(data[i].dst).replace(
+              new RegExp(placeholder, "g"),
+              "\n"
+            );
+
             console.log(`${target.chinese} => ${translated}`);
             set(newData, target.key, translated);
           }
