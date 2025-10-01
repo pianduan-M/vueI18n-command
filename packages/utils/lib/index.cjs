@@ -149,6 +149,7 @@ function requireCommon () {
 	const VueNodeTypesEnum = {
 	  ELEMENT: 1,
 	  TEXT: 2,
+	  COMMENT: 3,
 	  SIMPLE_EXPRESSION: 4,
 	  INTERPOLATION: 5,
 	  ATTRIBUTE: 6,
@@ -428,8 +429,36 @@ function requireDirectives () {
 	  }
 	}
 
+	class IgnoreVueTemplateNextLineDirective {
+	  ignoreLineNumbers = [];
+	  directive = "vueI18n-ignore-next-line";
+
+	  collectIgnoreNextLineDirective(node) {
+	    const commentText = node.content.trim();
+
+	    if (!commentText) return;
+
+	    if (commentText === this.directive) {
+	      const lineNumber = node.loc.start.line;
+	      this.ignoreLineNumbers.push(lineNumber + 1);
+	    }
+	  }
+
+	  hasLineNumber(lineNumber) {
+	    return this.ignoreLineNumbers.includes(lineNumber);
+	  }
+	  isIgnoreLine(node) {
+	    const lineNumber = node.loc && node.loc.start.line;
+
+	    if (!lineNumber) return;
+
+	    return this.hasLineNumber(lineNumber);
+	  }
+	}
+
 	directives = {
 	  IgnoreNextLineDirective,
+	  IgnoreVueTemplateNextLineDirective
 	};
 	return directives;
 }
@@ -455,7 +484,10 @@ function requireTransform () {
 	const { addNamed } = require$$7;
 	const { default: generate } = require$$8;
 	const traverse = require$$9.default;
-	const { IgnoreNextLineDirective } = requireDirectives();
+	const {
+	  IgnoreNextLineDirective,
+	  IgnoreVueTemplateNextLineDirective,
+	} = requireDirectives();
 
 	function createElementStr(content, node) {
 	  let attrsStr = "";
@@ -754,6 +786,7 @@ function requireTransform () {
 	function transformVueTemplateCode(template, options) {
 	  let result = "";
 	  const ast = template.ast;
+
 	  let templateSource = ast.source;
 	  const sourceArr = [];
 	  const firstIndex = template.loc.start.offset;
@@ -770,8 +803,18 @@ function requireTransform () {
 	    importLocal = "$t";
 	  }
 
+	  const ignoreVueTemplateNextLineDirective =
+	    new IgnoreVueTemplateNextLineDirective();
+
 	  const visitor = {
+	    [VueNodeTypesEnum.COMMENT](node) {
+	      ignoreVueTemplateNextLineDirective.collectIgnoreNextLineDirective(node);
+	    },
 	    [VueNodeTypesEnum.ELEMENT](node) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      if (node.props && node.props.length) {
 	        node.props.forEach((prop) => {
 	          const type = prop?.type;
@@ -791,6 +834,10 @@ function requireTransform () {
 	      }
 	    },
 	    [VueNodeTypesEnum.TEXT](node) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      if (node.content && zhExt.test(node.content)) {
 	        const value = node.content.trim();
 
@@ -811,6 +858,10 @@ function requireTransform () {
 	      }
 	    },
 	    [VueNodeTypesEnum.SIMPLE_EXPRESSION](node) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      if (node.ast) {
 	        const { type, consequent, alternate } = node.ast;
 	        if (type === "ConditionalExpression") {
@@ -835,6 +886,10 @@ function requireTransform () {
 	    },
 
 	    StringLiteral(node, source) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      const value = node?.value?.trim?.();
 	      if (value && zhExt.test(value)) {
 	        const id = md5Hash(value, options.md5secretKey);
@@ -856,6 +911,10 @@ function requireTransform () {
 	      return source;
 	    },
 	    [VueNodeTypesEnum.INTERPOLATION](node) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      const type = node.content.type;
 	      const excute = visitor[type];
 	      if (excute) {
@@ -863,6 +922,10 @@ function requireTransform () {
 	      }
 	    },
 	    [VueNodeTypesEnum.ATTRIBUTE](node) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      const { type, content } = node?.value || {};
 
 	      if (type === VueNodeTypesEnum.TEXT && zhExt.test(content)) {
@@ -892,6 +955,10 @@ function requireTransform () {
 	      }
 	    },
 	    [VueNodeTypesEnum.DIRECTIVE](node) {
+	      if (ignoreVueTemplateNextLineDirective.isIgnoreLine(node)) {
+	        return;
+	      }
+
 	      if (!node.exp) return;
 	      const type = node.exp.type;
 	      const excute = visitor[type];

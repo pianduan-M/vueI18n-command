@@ -15,7 +15,6 @@ program
   .option("--clear", "clean up unused translation fields")
   .option("--sync", "Synchronous translation field")
   .action(() => {
-    console.log(params);
     const i18n = new I18n("update", params);
     i18n.run();
   });

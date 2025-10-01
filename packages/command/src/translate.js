@@ -307,9 +307,9 @@ class Translate {
     return res;
   }
 
-  run() {
+  async run() {
     this.readFile();
-    this.translate();
+    await this.translate();
     console.log("translate successfully!");
   }
 }

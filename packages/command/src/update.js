@@ -204,15 +204,20 @@ module.exports = class Update {
   }
 
   vueSfcOpt(code, file) {
-    const { scriptContent, scriptSetupContent, templateAst } =
-      parseVueFile(code);
+    const { descriptor, errors } = parseVueFile(code);
 
-    if (scriptContent) {
-      this.babelOpt(scriptContent, file);
+    if (errors.length > 0) {
+      return content;
     }
 
-    if (scriptSetupContent) {
-      this.babelOpt(scriptSetupContent, file);
+    const { script, scriptSetup, template } = descriptor;
+
+    if (script?.content) {
+      this.babelOpt(script.content, file);
+    }
+
+    if (scriptSetup?.content) {
+      this.babelOpt(scriptSetup.content, file);
     }
 
     const _this = this;
@@ -222,7 +227,7 @@ module.exports = class Update {
       _this.validateKey(value, id, file);
     }
 
-    if (templateAst) {
+    if (template?.ast) {
       const visitor = {
         1(node) {
           if (node.props && node.props.length) {
@@ -295,7 +300,7 @@ module.exports = class Update {
         },
       };
 
-      const children = templateAst.children;
+      const children = template.ast.children;
       if (children && children.length) {
         children.forEach((child) => {
           const excute = visitor[child.type];
