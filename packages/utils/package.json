@@ -1,9 +1,10 @@
 {
   "name": "@pianduan/vue-i18n-command-utils",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "vue 项目 i18n 辅助工具",
   "scripts": {
-    "build": "rollup -c ./rollup.config.js"
+    "build": "rollup -c ./rollup.config.js",
+    "publish": "pnpm publish --no-git-checks --access public"
   },
   "keywords": [
     "vue",
@@ -38,6 +39,12 @@
     "yargs-parser": "^21.1.1"
   },
   "devDependencies": {
-    "rollup-plugin-copy": "^3.5.0"
+    "rollup-plugin-copy": "^3.5.0",
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "rollup": "^4.25.0"
+  },
+  "publishConfig": {
+    "linkWorkspacePackages": false
   }
 }

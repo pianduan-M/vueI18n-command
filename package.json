@@ -1,9 +1,11 @@
 {
   "name": "@pianduan/vue-i18n",
-  "version": "1.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "publish": "node ./publish/publish.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -13,15 +15,10 @@
     "@babel/parser": "^7.26.1",
     "@babel/traverse": "^7.25.9",
     "@babel/types": "^7.26.0",
-    "@pianduan/vue-i18n-command-utils": "workspace:^",
     "@rollup/plugin-json": "^6.1.0",
     "@vue/compiler-sfc": "^3.5.12",
     "crypto": "^1.0.1",
     "ignore": "^6.0.2"
   },
-  "devDependencies": {
-    "@rollup/plugin-commonjs": "^28.0.1",
-    "@rollup/plugin-node-resolve": "^15.3.0",
-    "rollup": "^4.25.0"
-  }
+  "devDependencies": {}
 }

@@ -550,12 +550,14 @@ exports.transformCode = function transformCode(content, file, options) {
     const relativePath = p.relative(rootPath, filePath);
 
     const entry = ignore().add(entries);
+
     if (!entry.ignores(relativePath)) {
       return content;
     }
 
     const includes = ignore().add(__includes);
     const included = includes.ignores(relativePath);
+
     const ig = ignore().add(ignoreList);
 
     if (ig.ignores(relativePath) && !included) {
@@ -585,3 +587,29 @@ exports.transformCode = function transformCode(content, file, options) {
 
   return content;
 };
+
+function astToObject(node) {
+  if (t.isObjectExpression(node)) {
+    const obj = {};
+    for (const prop of node.properties) {
+      if (t.isObjectProperty(prop)) {
+        const key = prop.key.name || prop.key.value;
+        obj[key] = astToObject(prop.value);
+      }
+    }
+    return obj;
+  }
+  if (t.isArrayExpression(node)) {
+    return node.elements.map(astToObject);
+  }
+  if (t.isRegExpLiteral(node)) {
+    return new RegExp(node.pattern, node.flags);
+  }
+  if (t.isStringLiteral(node)) return node.value;
+  if (t.isNumericLiteral(node)) return node.value;
+  if (t.isBooleanLiteral(node)) return node.value;
+  if (t.isNullLiteral(node)) return null;
+  return undefined; // 其他暂不处理
+}
+
+exports.astToObject = astToObject;

@@ -2,7 +2,9 @@
   "name": "@pianduan/vue-i18n-command",
   "version": "0.0.4",
   "description": "vue 项目 i18n 辅助工具",
-  "scripts": {},
+  "scripts": {
+    "publishNpm": "pnpm publish --no-git-checks --access public"
+  },
   "bin": {
     "vueI18n": "bin/index.js"
   },
@@ -20,13 +22,16 @@
   "dependencies": {
     "@babel/traverse": "^7.25.9",
     "@babel/types": "^7.26.0",
+    "@pianduan/vue-i18n-command-utils": "workspace:^",
     "axios": "^1.7.7",
     "commander": "^14.0.1",
     "crypto": "^1.0.1",
     "ignore": "^6.0.2",
     "lodash": "^4.17.21",
     "node-xlsx": "^0.24.0",
-    "yargs-parser": "^21.1.1",
-    "@pianduan/vue-i18n-command-utils": "^0.0.1"
+    "yargs-parser": "^21.1.1"
+  },
+  "publishConfig": {
+    "linkWorkspacePackages": false
   }
 }

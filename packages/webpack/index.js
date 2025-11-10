@@ -1,4 +1,7 @@
-const { transformCode, getRootPath } = require("@pianduan/vue-i18n-command-utils");
+const {
+  transformCode,
+  getRootPath,
+} = require("@pianduan/vue-i18n-command-utils");
 const path = require("path");
 const fs = require("fs");
 
@@ -20,7 +23,7 @@ module.exports = function (source) {
     if (!fs.existsSync(optionsPath)) {
       options = {};
     } else {
-      options = commonjsRequire(optionsPath);
+      options = require(optionsPath);
     }
   }
 

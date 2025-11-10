@@ -5,6 +5,7 @@ const { parse } = require("@babel/parser");
 
 const prettier = require("prettier");
 const { traverse } = require("@babel/types");
+const { getRootPath } = require("./common");
 
 function prettierJs(data, config = {}) {
   const defaultConfig = {
