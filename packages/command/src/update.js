@@ -49,10 +49,18 @@ module.exports = class Update {
   }
 
   readFiles(dir) {
+    if (!dir) {
+      return;
+    }
+
+    if (dir.length && dir[0] === "/") {
+      dir = dir.slice(1);
+    }
+
     const __rootPath = this.config.__rootPath;
+
     const dirPath = p.resolve(__rootPath, dir);
     scanFile(dirPath, this.config, (path) => {
-      console.log(`read ${path}`);
       const code = fs.readFileSync(path, { encoding: "utf8" });
 
       if (/\.vue$/.test(path)) {

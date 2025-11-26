@@ -8,8 +8,6 @@ export default function (options) {
 
     let optionsPath = path.resolve(projectPath, "./i18nConfig.js");
 
-    console.log(i18nUtils, "i18nUtils");
-
     //  判断是否存在配置文件
     if (!fs.existsSync(optionsPath)) {
       options = {};

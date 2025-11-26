@@ -1,6 +1,6 @@
 {
   "name": "@pianduan/vue-i18n-command",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "vue 项目 i18n 辅助工具",
   "scripts": {
     "publishNpm": "pnpm publish --no-git-checks --access public"

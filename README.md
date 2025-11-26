@@ -194,8 +194,10 @@ const obj = {
 
 
 ### 4. import
-``` vueI18n import ```
+``` vueI18n import [filepath] [sheetIndex] [--sync]```
 把 excel 文件转成 locale json 文件，excel 格式参考 export 导出格式
+
+--sync 同步翻译文件 没有此参数是直接用导入的文件覆盖项目翻译
 
 ### 5. server
 ``` vueI18n server [--port]```

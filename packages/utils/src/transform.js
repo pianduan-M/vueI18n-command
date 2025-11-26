@@ -524,6 +524,7 @@ function transformVueTemplateCode(template, options) {
 }
 
 exports.transformCode = function transformCode(content, file, options) {
+  
   const filePath = file.realpath;
   const _ignore = options.ignore || {};
   const sameGit = _ignore.sameGit;
@@ -613,3 +614,4 @@ function astToObject(node) {
 }
 
 exports.astToObject = astToObject;
+exports.transformVueCode = transformVueCode

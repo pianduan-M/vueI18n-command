@@ -1073,6 +1073,7 @@ function requireTransform () {
 	}
 
 	transform.astToObject = astToObject;
+	transform.transformVueCode = transformVueCode;
 	return transform;
 }
 

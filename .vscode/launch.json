@@ -8,8 +8,10 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${file}" // 要启动的入口文件
-      // 你也可以用 "${file}" 来调试当前活跃的文件
+      "program": "${file}", // 要启动的入口文件
+      // 你也可以用 "${file}" 来调试当前活跃的文件,
+      // root path
+      "cwd": "${workspaceFolder}/tests"
     }
   ]
 }
